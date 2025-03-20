@@ -1,0 +1,1 @@
+C:\Users\aabdu\Pictures\IOT_Joystick\build\app\intermediates\cxx\RelWithDebInfo\22j17y2f\obj\arm64-v8a

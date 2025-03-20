@@ -1,0 +1,2 @@
+C:/Users/aabdu/Pictures/IOT_Joystick/android/app/.cxx/RelWithDebInfo/22j17y2f/armeabi-v7a/CMakeFiles/edit_cache.dir
+C:/Users/aabdu/Pictures/IOT_Joystick/android/app/.cxx/RelWithDebInfo/22j17y2f/armeabi-v7a/CMakeFiles/rebuild_cache.dir
