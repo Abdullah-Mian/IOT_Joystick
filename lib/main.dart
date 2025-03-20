@@ -18,7 +18,8 @@ import 'dart:io';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart' as fb;
 import 'bluetooth_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'code_display_screen.dart';
+import 'Samplecodes_display_screen.dart';
+import 'package:permission_handler/permission_handler.dart';
 
      
 void main() async {
@@ -353,152 +354,350 @@ class _ControllerScreenState extends State<ControllerScreen>
     }
     
     bool isScanning = true;
+    bool hasFoundEsp32 = false;
+    String statusMessage = 'Scanning for devices...';
     
-    // Start scanning before showing dialog
-    bluetoothService.stopScan(); // Stop any existing scan
-    bluetoothService.startScan(); // Start scanning
-    
-    // Set a timer to stop the scanning indicator after 10 seconds
-    Future.delayed(const Duration(seconds: 10), () {
-      isScanning = false;
-    });
-    
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Select Bluetooth Device'),
-              isScanning 
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.bluetooth_disabled),
-            ],
-          ),
-          content: SizedBox(
-            width: 300,
-            height: 400,
-            child: Column(
+    // First ensure we have all required permissions
+    _requestBluetoothPermissions().then((permissionsGranted) {
+      if (!permissionsGranted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Bluetooth permissions are required to scan for devices')),
+        );
+        return;
+      }
+      
+      // Start scanning before showing dialog with longer timeout to find ESP32 devices
+      bluetoothService.stopScan();
+      
+      // Listen for ESP32 devices specifically
+      bluetoothService.isEsp32Device.listen((isEsp32) {
+        if (isEsp32) hasFoundEsp32 = true;
+      });
+      
+      // Listen for device messages
+      bluetoothService.deviceMessages.listen((message) {
+        if (context.mounted) {
+          setState(() {
+            statusMessage = message;
+          });
+        }
+      });
+      
+      bluetoothService.startScan(timeout: const Duration(seconds: 20));
+      
+      showDialog(
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, setState) => AlertDialog(
+            title: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Scan button at the top for better visibility
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      // Update scanning state first
-                      setState(() => isScanning = true);
-                      
-                      // Stop any existing scan
-                      bluetoothService.stopScan();
-                      
-                      // Start a new scan
-                      try {
-                        bluetoothService.startScan();
+                const Text('Select Bluetooth Device'),
+                isScanning 
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  : IconButton(
+                      icon: const Icon(Icons.refresh),
+                      onPressed: () {
+                        setState(() {
+                          isScanning = true;
+                          hasFoundEsp32 = false;
+                          statusMessage = 'Scanning for devices...';
+                        });
                         
-                        // Set a timer to update the UI after scanning for a while
-                        Future.delayed(const Duration(seconds: 10), () {
+                        bluetoothService.stopScan();
+                        bluetoothService.startScan(timeout: const Duration(seconds: 20)).then((_) {
                           if (context.mounted) {
                             setState(() => isScanning = false);
                           }
                         });
-                      } catch (e) {
-                        // Handle any errors that might occur
-                        if (context.mounted) {
-                          setState(() => isScanning = false);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Failed to scan: ${e.toString()}')),
-                          );
-                        }
-                      }
-                    },
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Scan for Devices'),
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 45),
+                      },
                     ),
-                  ),
-                ),
-                Expanded(
-                  child: StreamBuilder<List<fb.ScanResult>>(
-                    stream: bluetoothService.scanResults,
-                    initialData: const [],
-                    builder: (context, snapshot) {
-                      if (snapshot.data!.isEmpty) {
-                        return Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.bluetooth_searching, size: 48, color: Colors.blue),
-                              const SizedBox(height: 16),
-                              Text(
-                                isScanning 
-                                  ? 'Scanning for devices...' 
-                                  : 'No devices found. Tap Scan to try again.',
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          )
-                        );
-                      }
-                      
-                      // Display scan results
-                      return ListView.builder(
-                        itemCount: snapshot.data!.length,
-                        itemBuilder: (context, index) {
-                          final device = snapshot.data![index].device;
-                          final name = device.name.isEmpty ? 'Unknown Device' : device.name;
-                          return ListTile(
-                            leading: const Icon(Icons.bluetooth, color: Colors.blue),
-                            title: Text(name),
-                            subtitle: Text(device.id.toString()),
-                            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                            onTap: () => _connectToDevice(device, name),
-                          );
-                        },
-                      );
-                    },
-                  ),
-                ),
               ],
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                bluetoothService.stopScan();
-                Navigator.pop(context);
-              },
-              child: const Text('Cancel'),
+            content: SizedBox(
+              width: 300,
+              height: 400,
+              child: Column(
+                children: [
+                  // Status message display
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    width: double.infinity,
+                    child: Text(
+                      statusMessage,
+                      style: TextStyle(color: Colors.blue[800]),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  
+                  Expanded(
+                    child: StreamBuilder<List<DeviceInfo>>(  // Use DeviceInfo instead of CustomBluetoothService.DeviceInfo
+                      stream: bluetoothService.scanResults,
+                      initialData: const [],
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting && snapshot.data!.isEmpty) {
+                          return const Center(child: CircularProgressIndicator());
+                        }
+                        
+                        if (snapshot.hasError) {
+                          return Center(
+                            child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.red)),
+                          );
+                        }
+                        
+                        final devices = snapshot.data ?? [];
+                        
+                        if (devices.isEmpty) {
+                          return Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.bluetooth_searching, size: 48, color: Colors.grey),
+                                const SizedBox(height: 16),
+                                Text(
+                                  isScanning ? 'Searching for devices...' : 'No devices found',
+                                  style: const TextStyle(color: Colors.grey),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+                        
+                        // Sort devices with null safety
+                        final espDevices = devices
+                            .where((d) => d.isEsp32)  // isEsp32 is non-nullable in DeviceInfo class
+                            .toList()
+                          ..sort((a, b) => b.rssi.compareTo(a.rssi));  // rssi is non-nullable in DeviceInfo class
+                        
+                        final otherDevices = devices
+                            .where((d) => !d.isEsp32)
+                            .toList()
+                          ..sort((a, b) => b.rssi.compareTo(a.rssi));
+                        
+                        final allSortedDevices = [...espDevices, ...otherDevices];
+                        
+                        return ListView.builder(
+                          itemCount: allSortedDevices.length,
+                          itemBuilder: (context, index) {
+                            final deviceInfo = allSortedDevices[index];
+                            return Card(
+                              margin: const EdgeInsets.symmetric(vertical: 4),
+                              color: deviceInfo.isEsp32
+                                  ? Color.fromARGB(255, 235, 248, 235)  // Light green for ESP32
+                                  : null,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                side: BorderSide(
+                                  color: deviceInfo.isEsp32 ? Colors.green : Colors.transparent,
+                                  width: deviceInfo.isEsp32 ? 1 : 0,
+                                ),
+                              ),
+                              child: ListTile(
+                                title: Text(
+                                  deviceInfo.displayName,
+                                  style: TextStyle(
+                                    fontWeight: deviceInfo.isEsp32 ? FontWeight.bold : FontWeight.normal,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(deviceInfo.isEsp32 
+                                        ? 'ESP32 Device'
+                                        : 'Bluetooth LE'),
+                                    Text('Signal: ${deviceInfo.rssi} dBm', 
+                                         style: TextStyle(fontSize: 12)),
+                                  ],
+                                ),
+                                leading: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: deviceInfo.isEsp32 ? Colors.green.withOpacity(0.1) : Colors.blue.withOpacity(0.1),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    deviceInfo.isEsp32 ? Icons.memory : Icons.bluetooth,
+                                    color: deviceInfo.isEsp32 ? Colors.green : Colors.blue,
+                                    size: 24,
+                                  ),
+                                ),
+                                trailing: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(12),
+                                        color: _getRssiColor(deviceInfo.rssi).withOpacity(0.2),
+                                      ),
+                                      child: Text(
+                                        _getRssiLabel(deviceInfo.rssi),
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: _getRssiColor(deviceInfo.rssi),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    const Icon(Icons.arrow_forward_ios, size: 12),
+                                  ],
+                                ),
+                                onTap: () async {
+                                  // Close the dialog
+                                  Navigator.of(context).pop();
+                                  
+                                  // Stop scanning
+                                  bluetoothService.stopScan();
+                                  
+                                  // Show connection attempt dialog
+                                  showDialog(
+                                    context: context,
+                                    barrierDismissible: false,
+                                    builder: (BuildContext context) {
+                                      return AlertDialog(
+                                        title: const Text('Connecting'),
+                                        content: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                const CircularProgressIndicator(),
+                                                const SizedBox(width: 16),
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      Text('Connecting to ${deviceInfo.displayName}...'),
+                                                      const SizedBox(height: 4),
+                                                      Text(
+                                                        'Please wait while establishing connection',
+                                                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 16),
+                                            Text(
+                                              deviceInfo.isEsp32 ? 'ESP32 device detected!' : 'Standard Bluetooth device',
+                                              style: TextStyle(
+                                                fontStyle: FontStyle.italic,
+                                                fontSize: 12,
+                                                color: deviceInfo.isEsp32 ? Colors.green : Colors.grey[700],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                  );
+                                  
+                                  try {
+                                    await bluetoothService.connectToDevice(deviceInfo.scanResult.device);
+                                    if (context.mounted) {
+                                      Navigator.of(context).pop(); // Close connection dialog
+                                      setState(() {
+                                        bluetoothStatus = 'Connected to ${deviceInfo.displayName}';
+                                      });
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Connected to ${deviceInfo.displayName}'),
+                                          backgroundColor: Colors.green,
+                                        ),
+                                      );
+                                    }
+                                  } catch (e) {
+                                    if (context.mounted) {
+                                      Navigator.of(context).pop(); // Close connection dialog
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Failed to connect: ${e.toString()}'),
+                                          backgroundColor: Colors.red,
+                                        ),
+                                      );
+                                    }
+                                  }
+                                },
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ],
+            actions: [
+              TextButton(
+                onPressed: () {
+                  bluetoothService.stopScan();
+                  Navigator.of(context).pop();
+                },
+                child: const Text('Cancel'),
+              ),
+            ],
+          ),
         ),
-      ),
-    ).then((_) => bluetoothService.stopScan());
-    
-    // No need for this since we're already handling it with the Future.delayed above
-    // Future.delayed(const Duration(seconds: 10), () {
-    //   isScanning = false;
-    // });
+      ).then((_) {
+        // Clean up when dialog is closed
+        bluetoothService.stopScan();
+      });
+    });
+  }
+  
+  // Helper functions for the RSSI signal display
+  Color _getRssiColor(int rssi) {
+    if (rssi > -60) return Colors.green;
+    if (rssi > -80) return Colors.orange;
+    return Colors.red;
+  }
+  
+  String _getRssiLabel(int rssi) {
+    if (rssi > -60) return 'Excellent';
+    if (rssi > -70) return 'Good';
+    if (rssi > -80) return 'Fair';
+    if (rssi > -90) return 'Weak';
+    return 'Poor';
   }
 
-  Future<void> _connectToDevice(fb.BluetoothDevice device, String name) async {
-    try {
-      await bluetoothService.connectToDevice(device);
-      setState(() {
-        bluetoothStatus = 'Connected to $name';
-      });
-      Navigator.pop(context);
-    } catch (e) {
-      setState(() {
-        bluetoothStatus = 'Connection Failed';
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to connect: ${e.toString()}')),
-      );
-    } finally {
-      bluetoothService.stopScan();
+  // Handle permission requests for Bluetooth
+  Future<bool> _requestBluetoothPermissions() async {
+    // For Android 12 (API 31) and higher, we need specific Bluetooth permissions
+    List<Permission> permissions = [Permission.location];
+    
+    // Check Android version to request appropriate permissions
+    if (Platform.isAndroid) {
+      // These permissions are only needed on Android 12+
+      permissions.addAll([
+        Permission.bluetoothScan,
+        Permission.bluetoothConnect,
+        Permission.bluetoothAdvertise,
+      ]);
     }
+    
+    // Request all permissions at once
+    Map<Permission, PermissionStatus> statuses = await permissions.request();
+    
+    // Check if all required permissions are granted
+    bool allPermissionsGranted = true;
+    
+    statuses.forEach((permission, status) {
+      if (!status.isGranted) {
+        print("Permission not granted: $permission");
+        allPermissionsGranted = false;
+      }
+    });
+    
+    return allPermissionsGranted;
   }
 
   @override
