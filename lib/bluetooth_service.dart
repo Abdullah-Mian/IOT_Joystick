@@ -175,7 +175,7 @@ class CustomBluetoothService {
     // Use a shortened version of the ID for display
     String shortId = result.device.remoteId.toString();
     if (shortId.length > 8) {
-      shortId = shortId.substring(0, 8) + "...";
+      shortId = "${shortId.substring(0, 8)}...";
     }
     
     return "$deviceType ($shortId)";

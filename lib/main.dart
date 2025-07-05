@@ -52,7 +52,7 @@ class MyApp extends StatelessWidget {
           brightness: Brightness.dark,
         ),
         scaffoldBackgroundColor: const Color(0xFF1A1A1A),
-        cardTheme: CardTheme(
+        cardTheme: CardThemeData(
           color: const Color(0xFF2D2D2D),
           elevation: 4,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -487,7 +487,7 @@ class _ControllerScreenState extends State<ControllerScreen>
                             return Card(
                               margin: const EdgeInsets.symmetric(vertical: 4),
                               color: deviceInfo.isEsp32
-                                  ? Color.fromARGB(255, 235, 248, 235)  // Light green for ESP32
+                                  ? const Color.fromARGB(255, 235, 248, 235)  // Light green for ESP32
                                   : null,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(10),
@@ -511,7 +511,7 @@ class _ControllerScreenState extends State<ControllerScreen>
                                         ? 'ESP32 Device'
                                         : 'Bluetooth LE'),
                                     Text('Signal: ${deviceInfo.rssi} dBm', 
-                                         style: TextStyle(fontSize: 12)),
+                                         style: const TextStyle(fontSize: 12)),
                                   ],
                                 ),
                                 leading: Container(
