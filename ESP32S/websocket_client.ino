@@ -3,9 +3,9 @@
 #include <ArduinoJson.h>
 
 // IMPORTANT: Update these with your actual WiFi credentials and phone IP
-const char* ssid = "YOUR_WIFI_SSID";
-const char* password = "YOUR_WIFI_PASSWORD";
-const char* websocket_server = "192.168.1.100";
+const char* ssid = "Pixel 7";
+const char* password = "68986898";
+const char* websocket_server = "192.168.18.166";
 const int websocket_port = 5000;
 
 // Enhanced timing and connection management
@@ -296,7 +296,7 @@ void sendRandomTestMessage() {
   
   switch(messageType) {
     case 0:
-      message = testMessages[random(0, numTestMessages)] + " #" + String(messageCounter);
+      message = String(testMessages[random(0, numTestMessages)]) + " #" + String(messageCounter);
       break;
       
     case 1:
@@ -312,36 +312,8 @@ void sendRandomTestMessage() {
       message = status[random(0, 4)];
       break;
     }
+    
     case 4:
-      message = "🎯 Test message #" + String(messageCounter) + " - Connection stable";
-      break;
-  }
-  
-  webSocket.sendTXT(message);
-  Serial.println("📤 Sent: " + message);
-  messageCounter++;
-}
-
-void sendHeartbeat() {
-  if (!isConnected) return;
-  
-  DynamicJsonDocument doc(512);
-  doc["type"] = "HEARTBEAT";
-  doc["uptime_ms"] = millis();
-  doc["uptime_readable"] = String(millis()/1000) + "s";
-  doc["free_heap"] = ESP.getFreeHeap();
-  doc["wifi_rssi"] = WiFi.RSSI();
-  doc["status"] = "alive";
-  doc["message_count"] = messageCounter;
-  doc["ip"] = WiFi.localIP().toString();
-  doc["connection_quality"] = WiFi.RSSI() > -70 ? "excellent" : WiFi.RSSI() > -80 ? "good" : "fair";
-  
-  String jsonString;
-  serializeJson(doc, jsonString);
-  
-  webSocket.sendTXT(jsonString);
-  Serial.println("💓 Heartbeat #" + String(messageCounter) + " | Signal: " + String(WiFi.RSSI()) + "dBm");
-}
       message = "🎯 Test message #" + String(messageCounter) + " - Connection stable";
       break;
   }
