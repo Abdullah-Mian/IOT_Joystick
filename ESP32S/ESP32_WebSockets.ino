@@ -5,6 +5,7 @@
 const char *ssid = "Pixel 7";     // Replace with your hotspot SSID
 const char *password = "68986898"; // Replace with your hotspot password
 
+
 // Server details
 const char *host = "192.168.18.166"; // Replace with the IP shown in the app
 const int port = 5000;
