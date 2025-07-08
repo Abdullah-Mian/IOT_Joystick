@@ -45,12 +45,9 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
-	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>Our app uses bluetooth to find, connect and transfer data between different devices</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Our app needs access to your location to find and connect to Wi-Fi networks.</string>
 	<key>NSLocationAlwaysUsageDescription</key>
 	<string>Our app requires constant location access to manage Wi-Fi connections in the background.</string>
-
 </dict>
 </plist>

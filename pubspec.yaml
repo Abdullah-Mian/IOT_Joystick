@@ -16,7 +16,6 @@ dependencies:
   web_socket_channel: ^2.4.0
   shelf_web_socket: ^1.0.4
   shelf: ^1.4.1
-  flutter_blue_plus: ^1.35.3
   supabase_flutter: ^2.8.4
   path_provider: ^2.1.1
   device_info_plus: ^9.1.1
